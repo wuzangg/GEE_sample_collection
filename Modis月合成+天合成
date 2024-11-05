@@ -1,3 +1,4 @@
+//地学万事屋  《GEE月合成与天合成》
 pkgs.aggLAI = function(imagecollection, start, end){
 
   // calculate days
