@@ -1,0 +1,52 @@
+pkgs.aggLAI = function(imagecollection, start, end){
+
+  // calculate days
+  var days = end.difference(start,'days');
+  var day8_list = ee.List.sequence(0, days, 8);
+  // define the day advance function
+  function make_8day_list(n){
+    return start.advance(n, 'day');
+  }
+  var date_points = day8_list.map(make_8day_list);
+  
+  // (2) 
+  var aggLAI = function(date){
+    var image = imagecollection.filter(ee.Filter.date(ee.Date(date), ee.Date(date).advance(9, 'day')))
+    var image1 = image.first()
+    var LAI = image.select('Lai').mean()
+    return LAI
+//    .copyProperties(image1, image1.propertyNames())
+    .set("system:time_start", date)
+    .set("time", date)
+  }
+  var new_LAI = date_points.map(aggLAI)
+  var new_LAI = ee.ImageCollection(new_LAI)
+  return new_LAI 
+}
+exports = pkgs;
+
+pkgs.aggLAI = function(imagecollection, start, end){
+
+  // calculate month
+  var startYear = start.get('year')
+  var endYear = end.get('year')
+  var years = ee.List.sequence(startYear,endYear);
+  var months = ee.List.sequence(1,12);
+  
+  var monthlyImage =  ee.ImageCollection.fromImages(
+    years.map(function (y) { 
+      return months.map(function(m) {
+        var monthly = imagecollection
+          .filter(ee.Filter.calendarRange(ee.Number(y), ee.Number(y), "year"))
+          .filter(ee.Filter.calendarRange(ee.Number(m), ee.Number(m), "month"))
+          .mean(); 
+        return monthly
+          .set("year", y) 
+          .set("month", m)
+          .set('date', ee.Date.fromYMD(y,m,1))
+          .set("system:time_start", ee.Date.fromYMD(y, m, 1));}); })
+    .flatten());
+    return monthlyImage
+}
+
+exports = pkgs;
