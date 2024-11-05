@@ -1,3 +1,4 @@
+//地学万事屋  《GEE月合成与天合成》
 var roi=table
 // 调用MODIS的NDVI数据集250m
 var dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
