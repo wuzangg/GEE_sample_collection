@@ -1,0 +1,71 @@
+var roi=table
+// 调用MODIS的NDVI数据集250m
+var dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
+                  // 筛选研究时间和覆盖研究区域的影像
+                  .filter(ee.Filter.date('2020-01-01', '2021-01-01'))
+                  .select('NDVI')
+                  // 对NDVI波段进行0.0001比例缩放
+                  .map(function(image){
+                    return image.multiply(0.0001).set('system:time_start',image.get('system:time_start'))
+                                .clip(table)
+                  });
+var ndviVis = {
+  min: -1,
+  max: 1,
+  palette: ['red', 'blue', 'yellow', 'green'],
+};
+Map.centerObject(table, 8);
+Map.addLayer(dataset, ndviVis, 'NDVI');
+
+// 计算2020年NDVI月最大值
+var years = ee.List.sequence(2020, 2020);
+var months = ee.List.sequence(1, 12);
+var monthly_max =  ee.ImageCollection.fromImages(
+  years.map(function (y) {
+    return months.map(function(m) {
+    return dataset.filter(ee.Filter.calendarRange(y,y, 'year')).filter(ee.Filter.calendarRange(m, m, 'month')).max().set('year', y).set('month', m).set('system:time_start', ee.Date.fromYMD(y, m, 1));
+    });
+  }).flatten()
+);
+Map.addLayer(monthly_max.mean().clip(table), ndviVis, 'yearly_mean');
+print('全年月最大值时间序列',ui.Chart.image.series(monthly_max, table, ee.Reducer.mean(), 250));
+
+// 输出每月合成的NDVI最大值
+monthly_max
+  .aggregate_array('month')
+  .evaluate(function (months) {
+    months.forEach(function (month) {
+      var image = monthly_max
+        .filterMetadata('month', 'equals', month)
+        .first()
+      var description = 'NDVI_max-'+ '2020_' + month
+      Export.image.toDrive({
+        image: image,
+        description: description,
+        folder:"monthly_max",
+        scale: 250,
+        crs: "EPSG:4326",
+        maxPixels: 3784216672400,
+        region: table,
+      });      
+    })
+})
+
+var NDVImean = ee.Number(monthly_max.mean().reduceRegion({
+reducer: ee.Reducer.mean(),
+geometry: table,
+scale: 250,
+maxPixels: 1e9
+}).values().get(0));
+print('NDVImean',NDVImean);
+//将全年月最大值的平均值结果导出
+Export.image.toDrive({
+  image: monthly_max.mean(),
+  description: '2020_yearly_mean',
+  folder: 'AVHRR_NDVI',
+  crs: 'EPSG:4326',
+  fileFormat:'GeoTIFF',
+  region: table,
+  scale: 250,
+  maxPixels: 1e13,
+})
